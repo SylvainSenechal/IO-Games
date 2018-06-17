@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Mon projet canvas</title>
+    </head>
+    <body>
+        <canvas id="mon_canvas">
+            Message pour les navigateurs ne supportant pas encore canvas.
+        </canvas>
+
+        <!-- <button type="button" id="on" onclick="start()"> Start </button>
+        <button type="button" id="clean" onclick="clean()"> Clean </button> -->
+
+    </body>
+</html>
+<style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0px;
+      border: 0px;
+      overflow: hidden; /*  Disable scrollbars */
+      display: block;  /* No floating content on sides */
+    }
+
+    #on {
+      position: absolute;
+      top: 5px;
+      width: 100px;
+      height: 40px;
+      left: 850px;
+      z-index: 100;
+      display:block;
+      overflow: auto;
+    }
+    #clean {
+      position: absolute;
+      top: 5px;
+      width: 100px;
+      height: 40px;
+      left: 960px;
+      z-index: 100;
+      display:block;
+      overflow: auto;
+    }
+</style>
+<script src="/socket.io/socket.io.js"></script>
+<script src="surviving2.js"></script>
