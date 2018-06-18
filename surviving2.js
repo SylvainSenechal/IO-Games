@@ -2,20 +2,25 @@ window.addEventListener('load', init);
 
 var socket = io.connect('http://192.168.1.129:8080');
 
-// document.onclick = function(e){
-//   socket.emit('position', e.clientX);
-//   socket.emit('newBoule', "ui");
-// }
-socket.on('update', function(data){
-  jeu.listBlob = data
+socket.on('update', function(listJoueur){
+  jeu.listJoueur = listJoueur
 })
 
-socket.on('mess', function(data){
-  console.log(data)
+socket.on('playerConnection', function(player, sizeX, sizeY){
+  jeu.sizeX = sizeX
+  jeu.sizeY = sizeY
+
+  Me = player
+  Me.translateX = width/2 - Me.x
+  Me.translateY = height/2 - Me.y
+  console.log(Me)
+  setInterval(sendUpdate, 50)
+  loop()
 })
 
-// Utiliser des couleurs similaire (moyenne des 3 pour engendrer un nouvel individu quand il faut, nécessite case = +/- objet)
-// barre html pour ajuster fps
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
 
 function init(){
   canvas = document.getElementById('mon_canvas')
@@ -25,9 +30,13 @@ function init(){
   ctx.canvas.height = height
 	ctx.font = "40px Comic Sans MS"
 
-  initBlobs()
-  loop()
+  socket.emit('nouveauJoueur', width, height);
+
 }
+function sendUpdate(){
+  socket.emit('updatePlayer', Me);
+}
+
 window.addEventListener('resize', resize, false);
 function resize(){
 	height = window.innerHeight;
@@ -37,43 +46,41 @@ function resize(){
 }
 
 function loop(){ // Voir l'ordre des fonctions
-  moveBlobs()
+  moveJoueur()
   moveBullet()
   vitesse()
-  //tirBlob()
-  collisions()
+
+  //collisions()
+
+
   dessin()
   requestAnimationFrame(loop);
 }
 
 var ctx, canvas
-// Faire un canvas de taille normal et dessiner ce qui est important
-var width = window.innerWidth  // %3 == 0
+var width = window.innerWidth
 var height = window.innerHeight
-
-var jeu = {
-  translateX: 0,
-  translateY: 0,
-  sizeX: 5000,
-  sizeY: 5000,
-  listBlob: [],
+var Me = undefined
+var jeu = { // Definir le jeu depuis le serveur qui lui renvoie dans playerConnection
+  listJoueur: [],
   listBullet: [],
-  nbBlobs: 100,
+  nbJoueur: 0,
 }
 
 
-Blob = function(){ // Brain : orientation delta avec cible, speed ? ( à dissocier d'orientation ? ..)
-                    // Fitness : nb tués + temps survécu ?
-                    // Range max, la balle disparaît apres la range max parcourue
-                    // Dessiner le canon avec une ligne depuis le centre
-  this.x = Math.random()*jeu.sizeX
-  this.y = Math.random()*jeu.sizeY
-  // this.size= Math.random()*100
+
+Joueur = function(id){
+  this.id = id
+  let x = Math.random()*jeu.sizeX
+  let y = Math.random()*jeu.sizeY
+  this.x = x
+  this.y = y
+  this.translateX = width/2 - x,
+  this.translateY = height/2 - y,
   this.size = 50
   this.speedX = 0
   this.speedY = 0
-  this.canonOrientation = Math.random()*360 // Brain renvoie entre 0 et 1, * 360 ( > 360: val-360) ( < 360: 360-val)
-
+  this.canonOrientation = Math.random()*360
   this.color = getRandomColor()
 }
 
@@ -85,34 +92,14 @@ Bullet = function(valX, valY, valOrientation){
   this.orientation = valOrientation
 }
 
-function initBlobs(){
-  for(i=0; i<jeu.nbBlobs; i++){
-    jeu.listBlob.push(new Blob())
-  }
-
-  let x = Math.random()*4000
-  let y = Math.random()*2000
-  jeu.listBlob[0].x = x
-  jeu.listBlob[0].y = y
-  jeu.translateX = width/2 - x
-  jeu.translateY = height/2 - y
+function moveJoueur(){
+  Me.x += Me.speedX
+  Me.y += Me.speedY
 }
 
-function moveBlobs(){
-  for(i=0; i<jeu.listBlob.length; i++){
-    let blob = jeu.listBlob[i]
-    blob.x += blob.speedX
-    blob.y += blob.speedY
-  }
-}
-
-
-
-function tirBlob(){
-  for(i=0; i<1; i++){//jeu.listBlob.length; i++){
-    let blob = jeu.listBlob[i]
-    jeu.listBullet.push(new Bullet(blob.x, blob.y, canonOrientation))// Math.random()*360))// blob.canonOrientation))
-  }
+function tirJoueur(x, y, canonOrientation){
+  jeu.listBullet.push(new Bullet(x, y, canonOrientation))
+  console.log(jeu.listJoueur)
 }
 
 function moveBullet(){
@@ -138,36 +125,18 @@ function collisions(){
     }
   }
 }
-/////////////////////
-// ACTION DES BOUTONS
-/////////////////////
 
-// function start(){
-//   jeu.on = !jeu.on
-//
-//   if(jeu.on){
-//     document.getElementById("on").innerHTML = "Pause"
-//   }
-//   else{
-//     document.getElementById("on").innerHTML = "Start"
-//   }
-// }
 
 
 /////////////////////////////
 // CREATION DE MAP + DESSINER
 /////////////////////////////
-var canonOrientation = 0
-document.onmousemove = function(e){ // Utiliser les bords pour bouger
-  // if(mouseDown == true){
-  //   jeu.translateX -= e.movementX
-  //   jeu.translateY -= e.movementY
-  // }
 
+document.onmousemove = function(e){ // Utiliser les bords pour bouger
   let a = (e.x-width/2)
   let b = (e.y-height/2)
-
-  canonOrientation = Math.atan2(b,a)*180/Math.PI
+  //if(Me)
+  Me.canonOrientation = Math.atan2(b,a)*180/Math.PI
 }
 
 document.onwheel = function(e){ // !! pas trop dezoomer pour pas sortir du cadre
@@ -180,8 +149,13 @@ document.onwheel = function(e){ // !! pas trop dezoomer pour pas sortir du cadre
 }
 
 document.onclick = function(e){
-  tirBlob()
+  socket.emit('tir', Me.x, Me.y, Me.canonOrientation);
+  tirJoueur(Me.x, Me.y, Me.canonOrientation)
 }
+
+socket.on('bulletShot', function(bullet){
+  jeu.listBullet.push(bullet)
+})
 
 var mouseDown = false
 document.onmousedown = function(e){
@@ -208,19 +182,19 @@ document.onkeyup = function relache(e){
 }
 
 function vitesse(){
-	if(haut 	== true )	{ jeu.translateY+=15;
-                        jeu.listBlob[0].y-=15 }
-	if(droite == true )	{ jeu.translateX-=15;
-                        jeu.listBlob[0].x+=15}
-	if(bas 		== true )	{ jeu.translateY-=15;
-                        jeu.listBlob[0].y+=15}
-	if(gauche == true )	{ jeu.translateX+=15;
-                        jeu.listBlob[0].x-=15}
+	if(haut 	== true )	{ Me.translateY+=15;
+                        Me.y-=15 }
+	if(droite == true )	{ Me.translateX-=15;
+                        Me.x+=15}
+	if(bas 		== true )	{ Me.translateY-=15;
+                        Me.y+=15}
+	if(gauche == true )	{ Me.translateX+=15;
+                        Me.x-=15}
 
-  if(jeu.listBlob[0].x > jeu.sizeX) {jeu.listBlob[0].x = jeu.sizeX; jeu.translateX = -(jeu.sizeX - width/2) }
-  if(jeu.listBlob[0].x < 0        ) {jeu.listBlob[0].x = 0        ; jeu.translateX =  width/2               }
-  if(jeu.listBlob[0].y > jeu.sizeY) {jeu.listBlob[0].y = jeu.sizeX; jeu.translateY = -(jeu.sizeY - height/2)}
-  if(jeu.listBlob[0].y < 0        ) {jeu.listBlob[0].y = 0        ; jeu.translateY =  height/2              }
+  if(Me.x > jeu.sizeX) {Me.x = jeu.sizeX; Me.translateX = -(jeu.sizeX - width/2) }
+  if(Me.x < 0        ) {Me.x = 0        ; Me.translateX =  width/2               }
+  if(Me.y > jeu.sizeY) {Me.y = jeu.sizeX; Me.translateY = -(jeu.sizeY - height/2)}
+  if(Me.y < 0        ) {Me.y = 0        ; Me.translateY =  height/2              }
 }
 
 function dessin(){
@@ -229,57 +203,64 @@ function dessin(){
 
   ctx.strokeStyle = "#000000"
   // Lignes horizontales
-  if(jeu.translateY>0){ // Gestion < et > 0
+  if(Me.translateY>0){ // Gestion < et > 0
     for(i=0; i<height/100; i++){
       ctx.beginPath();
-      ctx.moveTo(0, i*100 + Math.abs(jeu.translateY%100));
-      ctx.lineTo(width, i*100 + Math.abs(jeu.translateY%100));
+      ctx.moveTo(0, i*100 + Math.abs(Me.translateY%100));
+      ctx.lineTo(width, i*100 + Math.abs(Me.translateY%100));
       ctx.stroke();
     }
   }
   else{
     for(i=0; i<height/100; i++){
       ctx.beginPath();
-      ctx.moveTo(0, i*100 + Math.abs(-100-jeu.translateY%100));
-      ctx.lineTo(width, i*100 + Math.abs(-100-jeu.translateY%100));
+      ctx.moveTo(0, i*100 + Math.abs(-100-Me.translateY%100));
+      ctx.lineTo(width, i*100 + Math.abs(-100-Me.translateY%100));
       ctx.stroke();
     }
   }
 
   // Lignes verticales
   ctx.strokeStyle = "#ff0000"
-  if(jeu.translateX>0){
+  if(Me.translateX>0){
     for(i=0; i<width/100; i++){
       ctx.beginPath();
-      ctx.moveTo(i*100 + Math.abs(jeu.translateX%100), 0);
-      ctx.lineTo(i*100 + Math.abs(jeu.translateX%100), height);
+      ctx.moveTo(i*100 + Math.abs(Me.translateX%100), 0);
+      ctx.lineTo(i*100 + Math.abs(Me.translateX%100), height);
       ctx.stroke();
     }
   }
   else{
     for(i=0; i<width/100; i++){
       ctx.beginPath();
-      ctx.moveTo(i*100 + Math.abs(-100-jeu.translateX%100), 0);
-      ctx.lineTo(i*100 + Math.abs(-100-jeu.translateX%100), height);
+      ctx.moveTo(i*100 + Math.abs(-100-Me.translateX%100), 0);
+      ctx.lineTo(i*100 + Math.abs(-100-Me.translateX%100), height);
       ctx.stroke();
     }
   }
 
-  for(i=0; i<jeu.listBlob.length; i++){
-    let blob = jeu.listBlob[i]
+
+  // Dessin Joueur
+  ctx.beginPath()
+  ctx.fillStyle = Me.color
+  ctx.arc(Me.x+Me.translateX, Me.y+Me.translateY, Me.size, 0, 2*Math.PI)
+  ctx.fill()
+  // Dessin autres joueurs
+  for(i=0; i<jeu.listJoueur.length; i++){
+    let blob = jeu.listJoueur[i]
     ctx.beginPath()
     ctx.fillStyle = blob.color
     ctx.arc(blob.x+jeu.translateX, blob.y+jeu.translateY, blob.size, 0, 2*Math.PI)
     ctx.fill()
   }
-jeu.listBlob[1].x += 0.5
-jeu.listBlob[1].y += 0.8
+
+
   ctx.fillStyle = "#000000"
   for(i=0; i<jeu.listBullet.length; i++){
     let bullet = jeu.listBullet[i]
     ctx.beginPath()
 
-    ctx.arc(bullet.x+jeu.translateX, bullet.y+jeu.translateY, bullet.size, 0, 2*Math.PI)
+    ctx.arc(bullet.x+Me.translateX, bullet.y+Me.translateY, bullet.size, 0, 2*Math.PI)
     ctx.fill()
   }
   //ctx.translate(jeu.translateX, jeu.translateY)
@@ -293,3 +274,50 @@ function getRandomColor() {
   }
   return color;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/////////////////////
+// ACTION DES BOUTONS
+/////////////////////
+
+// function start(){
+//   jeu.on = !jeu.on
+//
+//   if(jeu.on){
+//     document.getElementById("on").innerHTML = "Pause"
+//   }
+//   else{
+//     document.getElementById("on").innerHTML = "Start"
+//   }
+// }
