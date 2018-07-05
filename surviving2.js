@@ -1,9 +1,30 @@
-window.addEventListener('load', init);
+// ip à rentrer dans url pour co (et pas localhost)
+var socket = io.connect('http://192.168.1.132:8080');
 
-var socket = io.connect('http://192.168.1.129:8080');
+socket.on('update', function(liste){
 
-socket.on('update', function(listJoueur){
-  jeu.listJoueur = listJoueur
+
+  // !!! Ajouter le retrait
+  let trouve = false
+  let indexTrouve = 0
+  for(i=0; i<liste.length; i++){
+    let id = liste[i].id
+    trouve = false
+    for(j=0; j<jeu.listJoueur.length; j++){
+      id2 = jeu.listJoueur[j].id
+      if(id2 == id){
+        trouve = true
+        indexTrouve = j
+      }
+    }
+    if(trouve){
+      jeu.listJoueur[indexTrouve].cibleX = liste[i].cibleX
+      jeu.listJoueur[indexTrouve].cibleY = liste[i].cibleY
+    }
+    else{
+      jeu.listJoueur.push(liste[i])
+    }
+  }
 })
 
 socket.on('playerConnection', function(player, sizeX, sizeY){
@@ -14,7 +35,7 @@ socket.on('playerConnection', function(player, sizeX, sizeY){
   Me.translateX = width/2 - Me.x
   Me.translateY = height/2 - Me.y
   console.log(Me)
-  setInterval(sendUpdate, 50)
+  setInterval(sendUpdate, 32) // ne pas oublier l'autre update du serveur
   loop()
 })
 
@@ -22,7 +43,7 @@ socket.on('playerConnection', function(player, sizeX, sizeY){
 /////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////
 
-function init(){
+const init = () => {
   canvas = document.getElementById('mon_canvas')
   ctx = canvas.getContext('2d')
 
@@ -33,25 +54,23 @@ function init(){
   socket.emit('nouveauJoueur', width, height);
 
 }
-function sendUpdate(){
-  socket.emit('updatePlayer', Me);
+const sendUpdate = () => {
+  socket.emit('updatePlayerPosition', Me);
 }
 
-window.addEventListener('resize', resize, false);
-function resize(){
+const resize = () => {
 	height = window.innerHeight;
 	width = window.innerWidth;
   ctx.canvas.width = window.innerWidth
   ctx.canvas.height = window.innerHeight
 }
 
-function loop(){ // Voir l'ordre des fonctions
+const loop = () => { // Voir l'ordre des fonctions
   moveJoueur()
   moveBullet()
   vitesse()
-
+  moveOthers()
   //collisions()
-
 
   dessin()
   requestAnimationFrame(loop);
@@ -92,17 +111,24 @@ Bullet = function(valX, valY, valOrientation){
   this.orientation = valOrientation
 }
 
-function moveJoueur(){
+const moveOthers = () => {
+  jeu.listJoueur.forEach( joueur => {
+    joueur.x += (joueur.cibleX - joueur.x) * 0.16
+    joueur.y += (joueur.cibleY - joueur.y) * 0.16
+  })
+}
+
+const moveJoueur = () => {
   Me.x += Me.speedX
   Me.y += Me.speedY
 }
 
-function tirJoueur(x, y, canonOrientation){
+const tirJoueur = (x, y, canonOrientation) => {
   jeu.listBullet.push(new Bullet(x, y, canonOrientation))
   console.log(jeu.listJoueur)
 }
 
-function moveBullet(){
+const moveBullet = () => {
   for(i=0; i<jeu.listBullet.length; i++){
     let bullet = jeu.listBullet[i]
     let plusX = Math.cos(bullet.orientation*Math.PI/180) * bullet.speed
@@ -112,7 +138,7 @@ function moveBullet(){
   }
 }
 
-function collisions(){
+const collisions = () => {
   for(i=0; i<jeu.listBullet.length; i++){
     let bullet = jeu.listBullet[i]
     for(j=1; j<jeu.listBlob.length; j++){ // 1 pour pas compter mon blob
@@ -132,14 +158,14 @@ function collisions(){
 // CREATION DE MAP + DESSINER
 /////////////////////////////
 
-document.onmousemove = function(e){ // Utiliser les bords pour bouger
+document.onmousemove = (e) => { // Utiliser les bords pour bouger
   let a = (e.x-width/2)
   let b = (e.y-height/2)
   //if(Me)
   Me.canonOrientation = Math.atan2(b,a)*180/Math.PI
 }
 
-document.onwheel = function(e){ // !! pas trop dezoomer pour pas sortir du cadre
+document.onwheel = (e) => { // !! pas trop dezoomer pour pas sortir du cadre
   if(e.deltaY<0){ // zoom
 		ctx.scale(1.1, 1.1)
 	}
@@ -148,7 +174,7 @@ document.onwheel = function(e){ // !! pas trop dezoomer pour pas sortir du cadre
 	}
 }
 
-document.onclick = function(e){
+document.onclick = (e) => {
   socket.emit('tir', Me.x, Me.y, Me.canonOrientation);
   tirJoueur(Me.x, Me.y, Me.canonOrientation)
 }
@@ -158,30 +184,30 @@ socket.on('bulletShot', function(bullet){
 })
 
 var mouseDown = false
-document.onmousedown = function(e){
+document.onmousedown = (e) => {
   mouseDown = true
 }
-document.onmouseup = function(e){
+document.onmouseup = (e) => {
   mouseDown = false
 }
 
 var haut, bas, droite, gauche;
 var vitesseX = 0;
 var vitesseY = 0;
-document.onkeydown = function pression(e){
+document.onkeydown = (e) => {
 	if(e.keyCode == 90){ haut 	= 	true; }
 	if(e.keyCode == 68){ droite = 	true; }
 	if(e.keyCode == 83){ bas 	= 	true; }
 	if(e.keyCode == 81){ gauche = 	true; }
 }
-document.onkeyup = function relache(e){
+document.onkeyup = (e) => {
 	if(e.keyCode == 90){ haut 	= 	false; }
 	if(e.keyCode == 68){ droite = 	false; }
 	if(e.keyCode == 83){ bas 	=	false; }
 	if(e.keyCode == 81){ gauche = 	false; }
 }
 
-function vitesse(){
+const vitesse = () => {
 	if(haut 	== true )	{ Me.translateY+=15;
                         Me.y-=15 }
 	if(droite == true )	{ Me.translateX-=15;
@@ -197,7 +223,7 @@ function vitesse(){
   if(Me.y < 0        ) {Me.y = 0        ; Me.translateY =  height/2              }
 }
 
-function dessin(){
+const dessin= () => {
   //ctx.translate(-jeu.translateX, -jeu.translateY)
   ctx.clearRect(0, 0, width, height) // clear map
 
@@ -248,10 +274,12 @@ function dessin(){
   // Dessin autres joueurs
   for(i=0; i<jeu.listJoueur.length; i++){
     let blob = jeu.listJoueur[i]
-    ctx.beginPath()
-    ctx.fillStyle = blob.color
-    ctx.arc(blob.x+jeu.translateX, blob.y+jeu.translateY, blob.size, 0, 2*Math.PI)
-    ctx.fill()
+    if(blob.id != Me.id){
+      ctx.beginPath()
+      ctx.fillStyle = blob.color
+      ctx.arc(blob.x+Me.translateX, blob.y+Me.translateY, blob.size, 0, 2*Math.PI)
+      ctx.fill()
+    }
   }
 
 
@@ -266,7 +294,7 @@ function dessin(){
   //ctx.translate(jeu.translateX, jeu.translateY)
 }
 
-function getRandomColor() {
+const getRandomColor = () => {
   var letters = '0123456789ABCDEF';
   var color = '#';
   for (var i = 0; i < 6; i++) {
@@ -278,46 +306,5 @@ function getRandomColor() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/////////////////////
-// ACTION DES BOUTONS
-/////////////////////
-
-// function start(){
-//   jeu.on = !jeu.on
-//
-//   if(jeu.on){
-//     document.getElementById("on").innerHTML = "Pause"
-//   }
-//   else{
-//     document.getElementById("on").innerHTML = "Start"
-//   }
-// }
+window.addEventListener('load', init);
+window.addEventListener('resize', resize, false);

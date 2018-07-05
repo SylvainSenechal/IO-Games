@@ -23,18 +23,14 @@ app.get('/surviving2.js', function(req, res) {
 
 var jeu = {
 
-  sizeX: 5000,
-  sizeY: 5000,
+  sizeX: 1000,
+  sizeY: 1000,
   listJoueur: [],
   listBullet: [],
   nbJoueur: 0,
 }
 
-//setInterval(sendUpdate, 50)
 
-function sendUpdate(){
-  io.emit('update', jeu.listJoueur)
-}
 
 Joueur = function(id, width, height){
   this.id = id
@@ -43,6 +39,8 @@ Joueur = function(id, width, height){
   let y = Math.random()*jeu.sizeY
   this.x = x
   this.y = y
+  this.cibleX = x
+  this.cibleY = y
 
   this.translateX = width/2 - x,
   this.translateY = height/2 - y,
@@ -67,19 +65,35 @@ Bullet = function(valX, valY, valOrientation){
 /////////////////////////////////////////////////////////////////////////////////////////
 
 
-// Envoyer un emit depuis client (tpsHaut, bas, droite, gauche) pour regarder si les moouvements sont ok
-// rapport à la dernière position
+// io.emit : tout le monde
+// socket.broadcast.emit : tout le monde sauf soit
+// socket.emit : juste à soit non fonctionnel ?
+
+
+const sendUpdate = () => {
+  io.emit('update', jeu.listJoueur)
+}
+setInterval(sendUpdate, 32) // ne pas oublier l'autre update du client
+
 io.on('connection', function (socket){
   console.log("Connection d'un joueur : " + socket.id);
 
   socket.on('nouveauJoueur', function(width, height){
     let joueur = new Joueur(socket.id, width, height)
-    //jeu.listJoueur.push(joueur)
+    jeu.listJoueur.push(joueur)
+    console.log(jeu.listJoueur)
     io.sockets.connected[socket.id].emit('playerConnection', joueur, jeu.sizeX, jeu.sizeY)
   })
-  socket.on('updatePlayer', function(player){
-    //jeu.listJoueur = player
-    socket.broadcast.emit('update', player)
+  socket.on('updatePlayerPosition', function(player){
+    let found = jeu.listJoueur.find( element => element.id == player.id )
+    if(found != undefined){
+      found.x = player.x
+      found.y = player.y
+      found.cibleX = player.x
+      found.cibleY = player.y
+    }
+
+    //socket.broadcast.emit('update', player)
   })
 
 
@@ -111,6 +125,7 @@ io.on('connection', function (socket){
 
   socket.on('disconnect', function(){
     console.log('user disconnected : ' + socket.id);
+    jeu.listJoueur = jeu.listJoueur.filter( arr => arr.id != socket.id )
   });
 });
 
